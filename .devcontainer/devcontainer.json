@@ -1,0 +1,51 @@
+// Hermes Cloud Codespace — 24/7 gateway runner
+// This devcontainer installs Hermes CLI and runs the gateway headlessly.
+
+{
+  "name": "Hermes Cloud Gateway",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb",
+    "storage": "8gb"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "postCreateCommand": ".devcontainer/setup-hermes.sh",
+  "postStartCommand": ".devcontainer/start-gateway.sh",
+  "forwardPorts": [3000, 8080],
+  "portsAttributes": {
+    "3000": {
+      "label": "Hermes Gateway",
+      "onAutoForward": "silent"
+    },
+    "8080": {
+      "label": "Health Check",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "files.watcherExclude": {
+          "**/hermes/**": true
+        }
+      },
+      "extensions": [
+        "ms-python.python",
+        "GitHub.codespaces"
+      ]
+    }
+  },
+  "lifecycleHook": {
+    "postCreate": "bash .devcontainer/setup-hermes.sh",
+    "postStart": "bash .devcontainer/start-gateway.sh",
+    "postAttach": "bash .devcontainer/post-attach.sh"
+  }
+}
