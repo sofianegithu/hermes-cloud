@@ -1,6 +1,3 @@
-// Hermes Cloud Codespace — 24/7 Telegram gateway runner
-// Codespaces secrets TELEGRAM_BOT_TOKEN and GH_TOKEN_FOR_API
-// are set at the repo level and become env vars automatically.
 {
   "name": "Hermes Cloud Gateway",
   "image": "mcr.microsoft.com/devcontainers/universal:2",
@@ -15,15 +12,20 @@
   },
   "remoteEnv": {
     "TELEGRAM_BOT_TOKEN": "${secrets:TELEGRAM_BOT_TOKEN}",
-    "GH_TOKEN_FOR_API": "${secrets:GH_TOKEN_FOR_API}"
+    "GH_TOKEN_FOR_API": "${secrets:GH_TOKEN_FOR_API}",
+    "MESH_WEBHOOK_SECRET": "${secrets:MESH_WEBHOOK_SECRET}"
   },
   "postCreateCommand": "bash .devcontainer/setup-hermes.sh",
   "postStartCommand": "bash .devcontainer/start-gateway.sh",
-  "postAttachCommand": "cat ~/.hermes/cloud-setup-done 2>/dev/null && bash .devcontainer/post-attach.sh || echo '⏳ Setup still running...'",
-  "forwardPorts": [3000],
+  "postAttachCommand": "bash .devcontainer/post-attach.sh",
+  "forwardPorts": [3000, 8644],
   "portsAttributes": {
     "3000": {
       "label": "Hermes Gateway",
+      "onAutoForward": "silent"
+    },
+    "8644": {
+      "label": "Agent Mesh Webhook",
       "onAutoForward": "silent"
     }
   },

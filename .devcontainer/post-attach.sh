@@ -1,30 +1,40 @@
 #!/bin/bash
-# 📋 Post-attach script — shows status when you open the Codespace
-echo ""
-echo "╔══════════════════════════════════════════════╗"
-echo "║     🤖  Hermes Cloud Gateway  🌐           ║"
-echo "╠══════════════════════════════════════════════╣"
-echo "║  Status: Checking...                        ║"
-echo "╚══════════════════════════════════════════════╝"
-echo ""
+# 🖥️ Hermes Cloud — Post-Attach Status Display
+# Shows system status when you connect to the Codespace via VS Code.
 
-# Check gateway
+echo ""
+echo "╔══════════════════════════════════════════════════╗"
+echo "║  ☁️  HERMES CLOUD — Full Agent Gateway          ║"
+echo "╠══════════════════════════════════════════════════╣"
+
+# Gateway status
 if curl -s http://localhost:3000/health > /dev/null 2>&1; then
-    echo "✅ Gateway: RUNNING on port 3000"
+    UPTIME=$(curl -s http://localhost:3000/health 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(f\"{d.get('uptime',0):.0f}s\")" 2>/dev/null || echo "?")
+    echo "║  ✅ Telegram Gateway: RUNNING (uptime: $UPTIME) ║"
 else
-    echo "❌ Gateway: OFFLINE — run: bash .devcontainer/start-gateway.sh"
+    echo "║  ❌ Telegram Gateway: OFFLINE                   ║"
 fi
 
-# Check health server
-if curl -s http://localhost:8080/ > /dev/null 2>&1; then
-    echo "✅ Health: RUNNING on port 8080"
+# Webhook status
+if curl -s http://localhost:8644/health > /dev/null 2>&1; then
+    echo "║  ✅ Agent Mesh Webhook: RUNNING                  ║"
 else
-    echo "❌ Health: OFFLINE"
+    echo "║  ℹ️  Agent Mesh Webhook: Not enabled              ║"
 fi
 
-echo ""
-echo "📋 Quick commands:"
-echo "   .devcontainer/start-gateway.sh    — Start the gateway"
-echo "   cat ~/.hermes/logs/gateway.log    — View gateway logs"
-echo "   hermes gateway status             — Check gateway status"
-echo ""
+# Cron status
+CRON_COUNT=$(hermes cron list 2>/dev/null | grep -cE 'scheduled|ok' || echo "0")
+echo "║  📋 Cron Jobs: $CRON_COUNT active                        ║"
+
+# Memory sync
+if [ -f ~/.hermes/logs/memory-sync.log ]; then
+    LAST_SYNC=$(tail -1 ~/.hermes/logs/memory-sync.log 2>/dev/null | cut -d']' -f2- | head -c 60)
+    echo "║  🔄 Last memory sync:${LAST_SYNC:- unknown}  ║"
+fi
+
+echo "╠══════════════════════════════════════════════════╣"
+echo "║  Commands:                                       ║"
+echo "║    View logs:  tail -f ~/.hermes/logs/*.log      ║"
+echo "║    Cron jobs:  hermes cron list                  ║"
+echo "║    Restart:    bash .devcontainer/start-gateway.sh║"
+echo "╚══════════════════════════════════════════════════╝"

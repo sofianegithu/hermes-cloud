@@ -1,85 +1,136 @@
-<<<<<<< HEAD
-# hermes-cloud
-Hermes Agent cloud gateway — 24/7 via GitHub Codespaces
-=======
-# 🤖 Hermes Cloud — GitHub Codespaces 24/7 Gateway
+# ☁️ Hermes Cloud — Full Agent Gateway
 
-Your Hermes agent that stays alive even when your laptop is off.
+**Your 24/7 Hermes agent in the cloud.**  
+Stays alive when your laptop sleeps. Runs cron. Replies on Telegram. Delegates work to local.
 
-## How It Works
+## The New Architecture — Agent Mesh
 
-1. **Codespace runs in the cloud** (free, 60h/month)
-2. **Telegram bridge stays alive** — bot responds even if your laptop sleeps
-3. **Keepalive loop** pings every 5 minutes to prevent auto-sleep
-4. **Health watchdog** monitors everything silently
+```
+TELEGRAM ──┐
+           ├── ☁️ CLOUD HERMES (Codespace)
+           │     • Full Hermes agent (not just a relay)
+           │     • Telegram bot responds 24/7
+           │     • All cron jobs run here too
+           │     • Webhook API for agent ↔ agent comms
+           │
+WHATSAPP ──┤
+           └── 🖥️ LOCAL HERMES (Laptop)
+                 • Full tool access (terminal, files, browser, computer-use)
+                 • Webhook API receives cloud delegations
+                 • Agent mesh protocol for structured tasks
+```
+
+## What Changed
+
+| Before (old) | After (new) |
+|-------------|-------------|
+| Cloud = dumb relay | Cloud = full Hermes agent with config |
+| No cron on cloud | All 11 cron jobs run on cloud too |
+| No webhook on local | Local has webhook API for cloud delegations |
+| One-way memory sync | Bidirectional knowledge sharing |
+| No agent protocol | Structured JSON task format for agent↔agent |
 
 ## Quick Start
 
-### 1. Create the Repo
+### 1. Set GitHub Codespaces Secrets
 
-Go to [github.com/new](https://github.com/new) and create a repo called `hermes-cloud`.
+Go to your repo → Settings → Secrets and variables → Codespaces, add:
 
-### 2. Push This Code
+| Secret | Value |
+|--------|-------|
+| `TELEGRAM_BOT_TOKEN` | Your Telegram bot token |
+| `GH_TOKEN_FOR_API` | GitHub token for API access |
+| `MESH_WEBHOOK_SECRET` | Secret for agent↔agent webhooks |
 
-```bash
-cd ~/hermes-cloud
-git init
-git add .
-git commit -m "Initial commit: Hermes Cloud gateway"
-git remote add origin https://github.com/YOUR_USERNAME/hermes-cloud.git
-git push -u origin main
+### 2. Create the Codespace
+
+```
+https://github.com/YOUR_USERNAME/hermes-cloud → Code → Codespaces → Create
 ```
 
-### 3. Launch the Codespace
-
-- Go to `https://github.com/YOUR_USERNAME/hermes-cloud`
-- Click the green **"<> Code"** button
-- Select **"Codespaces"** tab
-- Click **"Create codespace on main"**
-
-### 4. Configure Your Telegram Token
-
-Once the Codespace is running, open the terminal and:
+### 3. Verify
 
 ```bash
-echo 'TELEGRAM_BOT_TOKEN=your_token_here' > ~/.hermes/.env
-bash .devcontainer/start-gateway.sh
+# Check gateway
+curl http://localhost:3000/health
+
+# Check cron
+hermes cron list
+
+# Check agent mesh
+python3 scripts/agent_mesh.py status
 ```
 
-## What Runs Here
+## Services
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| Hermes Gateway | 3000 | Main Telegram bridge |
-| Health Server | 8080 | Keepalive + health check |
-| Keepalive Loop | — | Pings every 5min to prevent idle timeout |
+| Telegram Gateway | 3000 | Bot responds 24/7 |
+| Agent Mesh Webhook | 8644 | Cloud ↔ Local communication |
+| Keepalive Loop | — | Prevents 30-min idle timeout |
+| Cron Scheduler | — | All jobs run on cloud |
 
-## Prevent Idle Timeout
+## Cron Jobs (Cloud)
 
-Codespaces auto-stop after 30 min idle on free accounts. This setup:
-- Runs a keepalive loop internally
-- Touches files periodically
-- Pings local services
+| Time | Name | Description |
+|------|------|-------------|
+| 6AM daily | 🚀 Morning Power-Up | Daily briefing & motivation |
+| Every 15min | 🔄 Memory Sync | Sync knowledge with local |
+| 10AM daily | 💡 Content Generator | Social media content ideas |
+| 12PM daily | 🔍 Free API Hunter | Find new free AI APIs |
+| 9PM daily | 🌙 Evening Wind-Down | Evening reflection & coaching |
+| Every 4h | 🏥 System Health | Health monitoring |
+| 2AM daily | 🔬 Deep Audit | Full system audit |
+| 2AM Sat | ⚡ Auto-Improvement | Self-improvement tasks |
+| 10AM Sun | 📊 Weekly Review | Weekly strategic review |
 
-**For true 24/7**, upgrade to GitHub Pro ($4/month) for 180h or use a GitHub Enterprise/Education account.
+## Agent Mesh Protocol
 
-## Architecture
+See [docs/agent-mesh-protocol.md](docs/agent-mesh-protocol.md) for the full protocol spec.
 
-```
-Telegram ←→ Codespace (cloud) ←→ Your Local Hermes
-                  ↓
-          If local offline:
-          Buffers messages
-          Responds with "Sofiane is offline"
+Quick usage:
+
+```bash
+# Check agent status
+python3 scripts/agent_mesh.py status
+
+# Cloud → Local (send a task)
+curl -X POST http://localhost:8644/webhooks/execute-task \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Secret: mesh-webhook-secret" \
+  -d '{"task_type":"execute","payload":{"command":"ls -la"}}'
+
+# Local → Cloud (via Telegram)
+python3 scripts/agent_mesh.py to-cloud '{"task_type":"knowledge_share","payload":{...}}'
 ```
 
 ## Files
 
 ```
-.devcontainer/
-├── devcontainer.json    — Codespace config
-├── setup-hermes.sh      — One-time setup
-├── start-gateway.sh     — Start the gateway
-└── post-attach.sh       — Status on connect
+hermes-cloud/
+├── .devcontainer/
+│   ├── devcontainer.json     — Codespace config (auto-setup + auto-start)
+│   ├── setup-hermes.sh       — One-time install of Hermes + config
+│   ├── start-gateway.sh      — Start gateway + cron + keepalive
+│   ├── cron_bootstrap.sh     — Create all cron jobs (idempotent)
+│   └── post-attach.sh        — Show status on VS Code connect
+├── scripts/
+│   ├── agent_mesh.py         — Agent-to-agent communication tool
+│   ├── cloud_memory_pull.py  — Pull memory from local git
+│   ├── cloud_health.py       — Health monitoring watchdog
+│   └── gateway_keeper.py     — Gateway uptime monitor
+├── docs/
+│   └── agent-mesh-protocol.md — Full protocol specification
+└── README.md
 ```
->>>>>>> c1a9894 (Initial commit: Hermes Cloud gateway with devcontainer)
+
+## Troubleshooting
+
+**"Why isn't the webhook running?"**  
+Restart the Hermes app on your local machine. The webhook config needs a gateway reload.
+
+**"Cloud cron jobs aren't running"**  
+Run `bash .devcontainer/cron_bootstrap.sh` manually. The postStartCommand should do this automatically.
+
+**"Codespace keeps stopping"**  
+Free accounts get 30h/month and auto-stop after 30min idle. The keepalive loop helps but GitHub's limits still apply.

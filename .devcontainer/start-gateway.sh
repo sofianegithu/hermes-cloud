@@ -1,19 +1,22 @@
 #!/bin/bash
-# 🔌 Hermes Cloud Gateway Starter — runs every time Codespace starts/resumes
+# 🔌 Hermes Cloud — Start Full Agent Gateway
+# Runs every time the Codespace starts/resumes.
+# Launches: Telegram gateway + cron scheduler + keepalive loop
+
 set -e
 
 echo "🔌 Hermes Cloud Gateway starting at $(date)..."
 
 cd ~
 
-# Pull latest memory from local
+# === 1. Pull latest memory from local ===
 if [ -f /workspaces/hermes-cloud/scripts/cloud_memory_pull.py ]; then
     echo "📥 Pulling latest memory from local..."
     python3 /workspaces/hermes-cloud/scripts/cloud_memory_pull.py
     echo "✅ Memory sync complete"
 fi
 
-# Source the .env if it exists
+# === 2. Source environment ===
 if [ -f ~/.hermes/.env ]; then
     set -a
     source ~/.hermes/.env
@@ -21,80 +24,115 @@ if [ -f ~/.hermes/.env ]; then
     echo "✅ Environment loaded"
 fi
 
-# Check if token is configured
-if grep -q "__SET_ME__\|^TELEGRAM_BOT_TOKEN=*** ~/.hermes/.env 2>/dev/null; then
-    echo "
-╔══════════════════════════════════════════════╗
-║  ❌ TELEGRAM BOT TOKEN NOT CONFIGURED       ║
-╠══════════════════════════════════════════════╣
-║  Edit ~/.hermes/.env and set:               ║
-║    TELEGRAM_BOT_TOKEN=***        ║
-║                                              ║
-║  Then re-run: bash .devcontainer/start-     ║
-║                        gateway.sh            ║
-╚══════════════════════════════════════════════╝
-"
-    exit 1
+# === 3. Bootstrap cron jobs (idempotent) ===
+if [ -f /workspaces/hermes-cloud/.devcontainer/cron_bootstrap.sh ]; then
+    echo "🔄 Bootstrapping cron jobs..."
+    bash /workspaces/hermes-cloud/.devcontainer/cron_bootstrap.sh
+    echo "✅ Cron jobs ready"
 fi
 
-echo "✅ Telegram token found"
+# === 4. Set up cloud agent mesh webhooks ===
+# These let local agents delegate tasks to cloud
+echo "🔗 Setting up agent mesh..."
+for i in 1 2 3; do
+    if hermes webhook list > /dev/null 2>&1; then
+        # Create if not exists
+        hermes webhook list 2>/dev/null | grep -q "local-task" || \
+            hermes webhook subscribe local-task \
+                --prompt 'Task from local agent: {payload}' \
+                --events 'task.execute' \
+                --deliver telegram \
+                --secret 'mesh-cloud-secret-change-me' 2>/dev/null || true
+        hermes webhook list 2>/dev/null | grep -q "knowledge-share" || \
+            hermes webhook subscribe knowledge-share \
+                --prompt 'Knowledge from local: {payload}' \
+                --events 'knowledge.share' \
+                --deliver telegram \
+                --secret 'mesh-cloud-secret-change-me' 2>/dev/null || true
+        echo "✅ Agent mesh webhooks active"
+        break
+    fi
+    echo "⏳ Waiting for gateway... (attempt $i)"
+    sleep 3
+done
 
-# Try to start the gateway
-echo "🚀 Starting Hermes gateway..."
+# === 5. Start the gateway ===
+echo "🚀 Starting Hermes gateway on port 3000..."
+
+# Kill any existing gateway first
+pkill -f "hermes gateway" 2>/dev/null || true
+sleep 2
+
+# Start in background — gateway handles Telegram + cron scheduling
 hermes gateway run --port 3000 &
 GATEWAY_PID=$!
-echo "   PID: $GATEWAY_PID"
+echo "   Gateway PID: $GATEWAY_PID"
 
 # Wait and verify
-sleep 5
-if curl -s http://localhost:3000/health > /dev/null 2>&1; then
-    echo "✅ Gateway is LIVE on port 3000"
-else
-    echo "⚠️ Gateway not responding yet — may still be starting..."
-fi
+for i in $(seq 1 12); do
+    sleep 5
+    if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+        echo "✅ Gateway LIVE on port 3000"
+        break
+    fi
+    echo "   Waiting... ($((i*5))s)"
+done
 
-# Start keepalive loop (prevents 30-min idle timeout)
+# === 6. Start webhook platform if gateway supports it ===
+# The webhook platform runs inside the gateway, so no separate process needed
+echo "🌐 Webhook platform active on port 8644"
+
+# === 7. Start keepalive loop (prevents 30-min idle timeout) ===
 (
     while true; do
-        sleep 240  # every 4 min
-        # Ping gateway to keep it alive
+        sleep 240  # every 4 minutes
+        
+        # Ping gateway health endpoint
         curl -s http://localhost:3000/health > /dev/null 2>&1 || {
-            # If gateway died, restart it
-            echo "[$(date)] Gateway not responding — restarting..."
+            echo "[$(date)] ⚠️ Gateway not responding — restarting..."
             kill $GATEWAY_PID 2>/dev/null || true
+            
+            # Re-source env and restart
+            [ -f ~/.hermes/.env ] && source ~/.hermes/.env
             hermes gateway run --port 3000 &
             GATEWAY_PID=$!
-            sleep 5
+            echo "[$(date)] Gateway restarted with PID $GATEWAY_PID"
         }
-        # Touch home dir to prevent idle timeout
+        
+        # Touch home to prevent Codespace idle timeout
         touch ~/.hermes/.env 2>/dev/null || true
         echo "[$(date)] Keepalive ping" >> ~/.hermes/logs/keepalive.log 2>/dev/null || true
     done
 ) &
-echo "✅ Keepalive loop started (pings every 4min)"
+echo "✅ Keepalive loop running (pings every 4min)"
 
-# === ☁️ DAILY INNOVATION RESEARCH CRON ===
-echo "📡 Setting up daily agent innovation research cron (8AM UTC)..."
-mkdir -p ~/.hermes/logs
-mkdir -p ~/.hermes/scripts
+# === 8. Verify all systems ===
+echo ""
+echo "╔════════════════════════════════════════╗"
+echo "║  ☁️  HERMES CLOUD — SYSTEMS CHECK     ║"
+echo "╠════════════════════════════════════════╣"
 
-# Copy research script from repo if available
-if [ -f /workspaces/hermes-cloud/scripts/cloud_research_cron.py ]; then
-    cp /workspaces/hermes-cloud/scripts/cloud_research_cron.py ~/.hermes/scripts/cloud_research_cron.py
-    chmod +x ~/.hermes/scripts/cloud_research_cron.py
-    echo "✅ Research script installed from repo"
-fi
+# Gateway
+curl -s http://localhost:3000/health > /dev/null 2>&1 \
+    && echo "║  ✅ Gateway:      RUNNING on :3000  ║" \
+    || echo "║  ❌ Gateway:      OFFLINE           ║"
 
-# Install daily cron (8 AM UTC every day)
-# The script outputs to a file; we send it via the gateway API
-(crontab -l 2>/dev/null | grep -v "cloud_research_cron"; echo "0 8 * * * cd ~/.hermes/scripts && python3 cloud_research_cron.py 2>&1 | tee -a ~/.hermes/logs/research_cron.log; if [ -f ~/.hermes/cron/research_output.json ]; then curl -s -X POST http://localhost:3000/api/send -H 'Content-Type: application/json' -d \"{\\\"chat_id\\\":\\\"5615834073\\\",\\\"text\\\":\\\"☁️ **Cloud Research Daily**\n\n\\\$(python3 -c \\\"import json; d=json.load(open('/home/codespace/.hermes/cron/research_output.json')); print(d.get('summary','')[:3000])\\\" 2>/dev/null || echo 'No findings')\\\"}\" 2>&1 || true; fi") | crontab -
+# Webhook
+curl -s http://localhost:8644/health > /dev/null 2>&1 \
+    && echo "║  ✅ Webhook:      RUNNING on :8644  ║" \
+    || echo "║  ℹ️  Webhook:      May need restart  ║"
 
-echo "✅ Daily research cron installed (runs at 8:00 AM UTC, delivers via Telegram)"
+# Cron
+hermes cron list 2>/dev/null | head -5 | while read line; do
+    echo "║     $line"
+done
 
-# Save PID for later
-echo $GATEWAY_PID > ~/.hermes/gateway.pid
+echo "╚════════════════════════════════════════╝"
 echo ""
 echo "🌐 Gateway URL: http://localhost:3000"
+echo "🌐 Webhook URL: http://localhost:8644"
 echo "📝 Logs: ~/.hermes/logs/"
-echo "📡 Research cron: 8 AM daily → Telegram"
-echo "🛑 To stop: kill \$(cat ~/.hermes/gateway.pid)"
+echo "🛑 Stop: kill $(cat ~/.hermes/gateway.pid 2>/dev/null || echo "$GATEWAY_PID")"
+
+# Save PID
+echo $GATEWAY_PID > ~/.hermes/gateway.pid
