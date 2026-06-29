@@ -76,9 +76,9 @@ model:
 CEOF
 echo "✅ Config written"
 
-# Set up cron for health check
-(crontab -l 2>/dev/null; echo "*/30 * * * * cd ~ && python3 ~/.hermes/scripts/cloud_health.py 2>/dev/null || true") | crontab -
-echo "✅ Cron health check installed"
+# Set up cron for health check + memory pull
+(crontab -l 2>/dev/null; echo "*/30 * * * * cd /workspaces/hermes-cloud && python3 scripts/cloud_memory_pull.py 2>/dev/null || true") | crontab -
+echo "✅ Cron: health check + memory pull installed"
 
 # Set git config (so hermes doesn't complain)
 git config --global user.email "sofiane@hermes-cloud" 2>/dev/null || true
@@ -86,6 +86,13 @@ git config --global user.name "Sofiane (Cloud)" 2>/dev/null || true
 
 # Write setup marker
 echo "✅ Hermes Cloud setup complete at $(date)" > ~/.hermes/cloud-setup-done
+
+# Pull latest memory from local
+if [ -f /workspaces/hermes-cloud/scripts/cloud_memory_pull.py ]; then
+    echo ""
+    echo "📥 Pulling latest memory from local..."
+    python3 /workspaces/hermes-cloud/scripts/cloud_memory_pull.py
+fi
 
 echo ""
 echo "╔════════════════════════════════════╗"

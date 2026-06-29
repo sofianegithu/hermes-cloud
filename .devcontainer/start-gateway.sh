@@ -6,6 +6,13 @@ echo "🔌 Hermes Cloud Gateway starting at $(date)..."
 
 cd ~
 
+# Pull latest memory from local
+if [ -f /workspaces/hermes-cloud/scripts/cloud_memory_pull.py ]; then
+    echo "📥 Pulling latest memory from local..."
+    python3 /workspaces/hermes-cloud/scripts/cloud_memory_pull.py
+    echo "✅ Memory sync complete"
+fi
+
 # Source the .env if it exists
 if [ -f ~/.hermes/.env ]; then
     set -a
