@@ -63,18 +63,25 @@ def extract_text(html):
 
 def research_github_trending(content):
     """Parse GitHub trending page for interesting AI repos."""
-    lines = content.split("\n")
     repos = []
-    in_main = False
-    for i, line in enumerate(lines):
-        if '<main' in line: in_main = True
-        if in_main and 'href="/' in line and '/>' not in line:
-            match = re.search(r'href="/([^"]+)"', line)
-            if match:
-                repo = match.group(1)
-                # Skip non-AI repos
-                if any(k in repo.lower() for k in ["ai", "llm", "agent", "transform", "gpt", "langchain", "rag", "embed"]):
-                    repos.append(f"https://github.com/{repo}")
+    # GitHub trending uses <h2 class="h3 lh-condensed"> with <a href="/owner/repo">
+    # Match repo URLs like /owner/repo (but NOT language links like /trending/python?since=)
+    for match in re.finditer(r'href="/([^/"]+/[^/"]+)"[^>]*>', content):
+        repo = match.group(1)
+        # Skip non-repo links (language filters, etc.)
+        if '/' not in repo: continue
+        if repo.startswith('trending/'): continue
+        if repo.startswith('search/'): continue
+        if repo.startswith('login'): continue
+        if repo.startswith('settings'): continue
+        if repo.startswith('topics/'): continue
+        if repo.startswith('explore/'): continue
+        if repo.startswith('collections/'): continue
+        # Only keep AI/agent/LLM related repos
+        if any(k in repo.lower() for k in ["ai", "llm", "agent", "transform", "gpt", "langchain", "rag", "embed", "deep", "neural", "cog", "gen", "chat", "bot", "assist", "autom"]):
+            full_url = f"https://github.com/{repo}"
+            if full_url not in repos:
+                repos.append(full_url)
     return repos[:8]
 
 def research_huggingface(content):
