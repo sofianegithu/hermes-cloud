@@ -1,0 +1,14 @@
+{
+  "last_sync": "2026-06-29T14:12:28.821957",
+  "source": "local",
+  "memory_files": [
+    "config.yaml",
+    "env.txt",
+    "MEMORY.md",
+    "MEMORY.md.lock",
+    "scripts_installed.txt",
+    "USER.md",
+    "USER.md.lock"
+  ],
+  "scripts_count": 22
+}
